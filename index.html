@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#12141c">
+<meta name="description" content="ScanPro — offline document scanner with Indian-language OCR and searchable PDFs.">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ScanPro">
+<title>ScanPro</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/app.css">
+<script src="vendor/tesseract.min.js"></script>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ============ LIBRARY ============ -->
+  <section class="screen" id="screen-library" data-screen="library">
+    <header class="topbar">
+      <div class="topbar-title">
+        <h1>ScanPro</h1>
+        <span class="subtitle" id="library-count"></span>
+      </div>
+      <div class="topbar-actions">
+        <button class="icon-btn" id="btn-toggle-view" aria-label="Toggle grid or list view">
+          <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        </button>
+        <button class="icon-btn" id="btn-settings" aria-label="Settings">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="search-wrap">
+      <div class="search-field">
+        <svg class="search-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input type="search" id="search-input" placeholder="Search inside all scans…"
+               autocomplete="off" enterkeyhint="search">
+        <button class="clear-btn" id="search-clear" hidden aria-label="Clear search">✕</button>
+      </div>
+    </div>
+
+    <div class="scroll-area" id="library-scroll">
+      <div id="search-results" hidden></div>
+      <div id="doc-grid" class="doc-grid"></div>
+
+      <div class="empty-state" id="library-empty" hidden>
+        <div class="empty-art">
+          <svg viewBox="0 0 120 120">
+            <rect x="26" y="16" width="58" height="76" rx="5"/>
+            <path d="M38 38h34M38 52h34M38 66h22"/>
+            <circle cx="86" cy="82" r="20"/>
+            <path d="M86 74v16M78 82h16"/>
+          </svg>
+        </div>
+        <h2>No scans yet</h2>
+        <p>Tap the camera button to scan your first document. Everything stays on this device.</p>
+      </div>
+    </div>
+
+    <nav class="bottom-bar">
+      <button class="nav-btn active" data-nav="library">
+        <svg viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M13 3v5h5"/></svg>
+        <span>Scans</span>
+      </button>
+      <button class="capture-fab" id="btn-open-camera" aria-label="Scan a document">
+        <svg viewBox="0 0 24 24"><path d="M3 8a2 2 0 0 1 2-2h2.2l1.3-2h7l1.3 2H19a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="12.5" r="3.6"/></svg>
+      </button>
+      <button class="nav-btn" data-nav="lens">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/></svg>
+        <span>Lens</span>
+      </button>
+    </nav>
+  </section>
+
+  <!-- ============ CAMERA ============ -->
+  <section class="screen camera-screen" id="screen-camera" data-screen="camera" hidden>
+    <div class="camera-stage">
+      <video id="camera-video" playsinline muted autoplay></video>
+      <canvas id="camera-overlay" class="camera-overlay"></canvas>
+
+      <div class="camera-hint" id="camera-hint">Point at a document</div>
+
+      <div class="camera-topbar">
+        <button class="icon-btn ghost" id="btn-camera-close" aria-label="Close camera">
+          <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+        <div class="camera-modes" id="camera-modes">
+          <button class="mode-chip active" data-mode="document">Document</button>
+          <button class="mode-chip" data-mode="idcard">ID card</button>
+          <button class="mode-chip" data-mode="book">Book</button>
+          <button class="mode-chip" data-mode="lens">Lens</button>
+        </div>
+        <button class="icon-btn ghost" id="btn-flash" aria-label="Toggle torch">
+          <svg viewBox="0 0 24 24"><path d="M13 2L4 14h6l-1 8 9-12h-6z"/></svg>
+        </button>
+      </div>
+
+      <div class="camera-bottombar">
+        <button class="thumb-btn" id="btn-import" aria-label="Import from gallery">
+          <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M4 18l5-5 4 4 3-3 4 4"/></svg>
+        </button>
+        <button class="shutter" id="btn-shutter" aria-label="Capture"><span></span></button>
+        <button class="batch-btn" id="btn-batch" aria-label="Review captured pages">
+          <span class="batch-count" id="batch-count">0</span>
+        </button>
+      </div>
+
+      <label class="auto-toggle" id="auto-toggle-wrap">
+        <input type="checkbox" id="auto-capture" checked>
+        <span>Auto-capture</span>
+      </label>
+    </div>
+
+    <input type="file" id="file-input" accept="image/*" multiple hidden>
+  </section>
+
+  <!-- ============ EDITOR (crop + filter) ============ -->
+  <section class="screen editor-screen" id="screen-editor" data-screen="editor" hidden>
+    <header class="topbar dark">
+      <button class="icon-btn ghost" id="btn-editor-back" aria-label="Back">
+        <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <div class="topbar-title"><h1 id="editor-title">Adjust edges</h1></div>
+      <button class="text-btn" id="btn-editor-done">Done</button>
+    </header>
+
+    <div class="crop-stage" id="crop-stage">
+      <canvas id="crop-canvas"></canvas>
+      <svg class="crop-svg" id="crop-svg">
+        <polygon class="crop-poly" id="crop-poly"/>
+      </svg>
+      <div class="loupe" id="loupe" hidden><canvas id="loupe-canvas" width="150" height="150"></canvas></div>
+      <div class="stage-spinner" id="editor-spinner" hidden><div class="spinner"></div></div>
+    </div>
+
+    <div class="editor-tools">
+      <div class="filter-strip" id="filter-strip"></div>
+      <div class="tool-row">
+        <button class="tool-btn" id="btn-rotate-left">
+          <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg><span>Rotate</span>
+        </button>
+        <button class="tool-btn" id="btn-reset-corners">
+          <svg viewBox="0 0 24 24"><path d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4"/></svg><span>Auto edges</span>
+        </button>
+        <button class="tool-btn" id="btn-select-all">
+          <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/></svg><span>Full page</span>
+        </button>
+        <button class="tool-btn danger" id="btn-editor-delete">
+          <svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></svg><span>Discard</span>
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PAGES REVIEW ============ -->
+  <section class="screen" id="screen-pages" data-screen="pages" hidden>
+    <header class="topbar">
+      <button class="icon-btn" id="btn-pages-back" aria-label="Back">
+        <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <div class="topbar-title">
+        <h1 id="pages-title">Review</h1>
+        <span class="subtitle" id="pages-subtitle"></span>
+      </div>
+      <button class="text-btn accent" id="btn-pages-save">Save</button>
+    </header>
+
+    <div class="scroll-area">
+      <div class="page-thumbs" id="page-thumbs"></div>
+      <button class="add-page-btn" id="btn-add-page">
+        <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Add another page
+      </button>
+    </div>
+  </section>
+
+  <!-- ============ DOCUMENT VIEWER ============ -->
+  <section class="screen" id="screen-doc" data-screen="doc" hidden>
+    <header class="topbar">
+      <button class="icon-btn" id="btn-doc-back" aria-label="Back">
+        <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <div class="topbar-title">
+        <h1 id="doc-title" class="editable-title" contenteditable="true" spellcheck="false"></h1>
+        <span class="subtitle" id="doc-subtitle"></span>
+      </div>
+      <button class="icon-btn" id="btn-doc-menu" aria-label="More actions">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg>
+      </button>
+    </header>
+
+    <div class="scroll-area" id="doc-scroll">
+      <div class="doc-pager" id="doc-pager"></div>
+    </div>
+
+    <div class="action-bar">
+      <button class="action-btn" id="btn-ocr">
+        <svg viewBox="0 0 24 24"><path d="M4 7V4h4M20 7V4h-4M4 17v3h4M20 17v3h-4"/><path d="M8 12h8M8 9h8M8 15h5"/></svg>
+        <span>Text</span>
+      </button>
+      <button class="action-btn" id="btn-export-pdf">
+        <svg viewBox="0 0 24 24"><path d="M6 3h8l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v4h4"/><path d="M9 13h6M9 17h4"/></svg>
+        <span>PDF</span>
+      </button>
+      <button class="action-btn" id="btn-share">
+        <svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.2 10.8l7.6-4.6M8.2 13.2l7.6 4.6"/></svg>
+        <span>Share</span>
+      </button>
+      <button class="action-btn" id="btn-add-more">
+        <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+        <span>Add page</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- ============ TEXT / LENS RESULTS ============ -->
+  <section class="screen" id="screen-text" data-screen="text" hidden>
+    <header class="topbar">
+      <button class="icon-btn" id="btn-text-back" aria-label="Back">
+        <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <div class="topbar-title">
+        <h1>Recognised text</h1>
+        <span class="subtitle" id="text-subtitle"></span>
+      </div>
+      <button class="icon-btn" id="btn-copy-text" aria-label="Copy all text">
+        <svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg>
+      </button>
+    </header>
+
+    <div class="tabs" id="text-tabs">
+      <button class="tab active" data-tab="text">Text</button>
+      <button class="tab" data-tab="entities">Found</button>
+      <button class="tab" data-tab="translit">Transliteration</button>
+    </div>
+
+    <div class="scroll-area">
+      <div class="tab-panel active" data-panel="text">
+        <div class="ocr-meta" id="ocr-meta"></div>
+        <div class="ocr-text" id="ocr-text"></div>
+      </div>
+      <div class="tab-panel" data-panel="entities">
+        <div class="entity-list" id="entity-list"></div>
+      </div>
+      <div class="tab-panel" data-panel="translit">
+        <div class="translit-note" id="translit-note"></div>
+        <div class="ocr-text" id="translit-text"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LENS ============ -->
+  <section class="screen" id="screen-lens" data-screen="lens" hidden>
+    <header class="topbar">
+      <button class="icon-btn" id="btn-lens-back" aria-label="Back">
+        <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <div class="topbar-title">
+        <h1>Lens</h1>
+        <span class="subtitle">Point at text, a QR code or a barcode</span>
+      </div>
+      <span style="width:40px"></span>
+    </header>
+
+    <div class="camera-stage lens-stage">
+      <video id="lens-video" playsinline muted autoplay></video>
+      <canvas id="lens-overlay" class="camera-overlay"></canvas>
+      <div class="lens-reticle"></div>
+      <div class="lens-results" id="lens-results"></div>
+      <div class="camera-bottombar">
+        <span style="width:52px"></span>
+        <button class="shutter lens-shutter" id="btn-lens-capture" aria-label="Read this"><span></span></button>
+        <span style="width:52px"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SETTINGS ============ -->
+  <section class="screen" id="screen-settings" data-screen="settings" hidden>
+    <header class="topbar">
+      <button class="icon-btn" id="btn-settings-back" aria-label="Back">
+        <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+      <div class="topbar-title"><h1>Settings</h1></div>
+      <span style="width:40px"></span>
+    </header>
+
+    <div class="scroll-area">
+      <div class="settings-group">
+        <h2>OCR languages</h2>
+        <p class="group-note">Pick the languages on your documents. English is always on and helps read numbers accurately. Each pack downloads once and then works offline.</p>
+        <div class="lang-list" id="lang-list"></div>
+      </div>
+
+      <div class="settings-group">
+        <h2>Scanning</h2>
+        <label class="setting-row">
+          <span>Default filter</span>
+          <select id="set-filter"></select>
+        </label>
+        <label class="setting-row">
+          <span>Auto-capture when steady</span>
+          <input type="checkbox" id="set-autocapture" class="switch">
+        </label>
+        <label class="setting-row">
+          <span>Read text right after scanning</span>
+          <input type="checkbox" id="set-autoocr" class="switch">
+        </label>
+        <label class="setting-row">
+          <span>Scan quality</span>
+          <select id="set-quality">
+            <option value="1600">Good — smaller files</option>
+            <option value="2400">High (recommended)</option>
+            <option value="3200">Maximum — largest files</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="settings-group">
+        <h2>PDF</h2>
+        <label class="setting-row">
+          <span>Page size</span>
+          <select id="set-pagesize">
+            <option value="fit">Fit to scan</option>
+            <option value="a4">A4</option>
+            <option value="letter">Letter</option>
+            <option value="legal">Legal</option>
+            <option value="a5">A5</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="settings-group">
+        <h2>Translation</h2>
+        <p class="group-note">Transliteration (script to Latin letters) works offline and is built in. Machine translation needs a service — nothing is sent anywhere unless you set one up here.</p>
+        <label class="setting-row">
+          <span>Provider</span>
+          <select id="set-translate-provider"></select>
+        </label>
+        <label class="setting-row" id="row-translate-url" hidden>
+          <span>Server URL</span>
+          <input type="url" id="set-translate-url" placeholder="https://…">
+        </label>
+        <label class="setting-row" id="row-translate-key" hidden>
+          <span>API key</span>
+          <input type="password" id="set-translate-key" placeholder="Your key">
+        </label>
+      </div>
+
+      <div class="settings-group">
+        <h2>Storage</h2>
+        <div class="storage-bar"><div id="storage-fill"></div></div>
+        <p class="group-note" id="storage-note">Calculating…</p>
+      </div>
+
+      <div class="settings-group">
+        <h2>About</h2>
+        <p class="group-note">
+          ScanPro runs entirely on your device. Scans, recognised text and language
+          packs never leave it. Offline OCR is accurate but not perfect — words the
+          engine is unsure about are highlighted so you can check them.
+        </p>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<!-- Overlays -->
+<div class="sheet-backdrop" id="sheet-backdrop" hidden></div>
+<div class="sheet" id="sheet" hidden><div class="sheet-handle"></div><div class="sheet-body" id="sheet-body"></div></div>
+<div class="toast-stack" id="toast-stack"></div>
+<div class="busy" id="busy" hidden>
+  <div class="busy-card">
+    <div class="spinner"></div>
+    <p id="busy-label">Working…</p>
+    <div class="progress"><div id="busy-progress"></div></div>
+  </div>
+</div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

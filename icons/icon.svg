@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1b2030"/>
+      <stop offset="1" stop-color="#0b0d14"/>
+    </linearGradient>
+    <linearGradient id="warm" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffb96b"/>
+      <stop offset="1" stop-color="#f97316"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+
+  <!-- the page being scanned, in perspective -->
+  <path d="M168 128 L358 152 L340 386 L150 358 Z"
+        fill="#f7f5ef" opacity="0.97"/>
+  <g stroke="#3d4457" stroke-width="11" stroke-linecap="round">
+    <path d="M196 196 L316 210"/>
+    <path d="M194 238 L312 252"/>
+    <path d="M192 280 L268 289"/>
+  </g>
+
+  <!-- detection corners -->
+  <g stroke="url(#warm)" stroke-width="17" stroke-linecap="round" fill="none">
+    <path d="M168 172 L168 128 L212 133"/>
+    <path d="M314 147 L358 152 L356 196"/>
+    <path d="M342 342 L340 386 L296 380"/>
+    <path d="M194 353 L150 358 L152 314"/>
+  </g>
+</svg>

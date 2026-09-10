@@ -1,0 +1,16 @@
+{
+  "name": "scanpro",
+  "version": "1.0.0",
+  "description": "Offline document scanner with Indian-language OCR and searchable PDFs.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node tools/serve.mjs 8080",
+    "test": "node tools/test/e2e.mjs && node tools/test/camera.mjs && node tools/test/storage.mjs && node tools/test/transliteration.mjs",
+    "font": "python3 tools/make_glyphless_font.py"
+  },
+  "devDependencies": {
+    "playwright": "^1.47.0",
+    "tesseract.js": "5.1.1"
+  }
+}
