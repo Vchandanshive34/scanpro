@@ -236,7 +236,8 @@
     <div class="tabs" id="text-tabs">
       <button class="tab active" data-tab="text">Text</button>
       <button class="tab" data-tab="entities">Found</button>
-      <button class="tab" data-tab="translit">Transliteration</button>
+      <button class="tab" data-tab="translate">Translate</button>
+      <button class="tab" data-tab="translit">Roman</button>
     </div>
 
     <div class="scroll-area">
@@ -247,6 +248,22 @@
       <div class="tab-panel" data-panel="entities">
         <div class="entity-list" id="entity-list"></div>
       </div>
+      <div class="tab-panel" data-panel="translate">
+        <div class="translate-bar">
+          <label class="translate-target">
+            <span>Into</span>
+            <select id="translate-target"></select>
+          </label>
+          <button class="translate-go" id="btn-translate">Translate page</button>
+        </div>
+        <div class="translit-note" id="translate-note"></div>
+        <div class="translate-progress" id="translate-progress" hidden>
+          <div class="progress"><div id="translate-progress-fill"></div></div>
+          <span id="translate-progress-label">Translating…</span>
+        </div>
+        <div class="ocr-text" id="translate-text" hidden></div>
+      </div>
+
       <div class="tab-panel" data-panel="translit">
         <div class="translit-note" id="translit-note"></div>
         <div class="ocr-text" id="translit-text"></div>
@@ -337,11 +354,12 @@
 
       <div class="settings-group">
         <h2>Translation</h2>
-        <p class="group-note">Transliteration (script to Latin letters) works offline and is built in. Machine translation needs a service — nothing is sent anywhere unless you set one up here.</p>
+        <p class="group-note">Roman-letter transliteration works offline and is built in. Real translation needs a service, so the recognised text is sent there — only when you tap Translate on a page, never automatically.</p>
         <label class="setting-row">
           <span>Provider</span>
           <select id="set-translate-provider"></select>
         </label>
+        <p class="group-note" id="translate-provider-note"></p>
         <label class="setting-row" id="row-translate-url" hidden>
           <span>Server URL</span>
           <input type="url" id="set-translate-url" placeholder="https://…">
@@ -349,6 +367,14 @@
         <label class="setting-row" id="row-translate-key" hidden>
           <span>API key</span>
           <input type="password" id="set-translate-key" placeholder="Your key">
+        </label>
+        <label class="setting-row" id="row-translate-email" hidden>
+          <span>Email <small>(optional)</small></span>
+          <input type="email" id="set-translate-email" placeholder="raises the daily limit">
+        </label>
+        <label class="setting-row">
+          <span>Ask before sending text</span>
+          <input type="checkbox" id="set-translate-ask" class="switch">
         </label>
       </div>
 
