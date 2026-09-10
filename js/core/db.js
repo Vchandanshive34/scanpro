@@ -322,6 +322,12 @@ export const DEFAULT_SETTINGS = {
   jpegQuality: 0.86,
   maxDimension: 2400,
   gridView: true,
+  translateProvider: 'mymemory',
+  translateTarget: 'en',
+  translateConsent: false,
+  translateUrl: '',
+  translateKey: '',
+  translateEmail: '',
 };
 
 export async function getSettings() {
