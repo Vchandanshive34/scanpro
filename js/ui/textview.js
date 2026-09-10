@@ -7,9 +7,13 @@
  * worse than one that shows you where to look.
  */
 
-import { $, el, toast, copyText, escapeHtml } from './dom.js';
-import { extractEntities, groupEntities, transliterate, canTransliterate } from '../core/lens.js';
-import { LANG_BY_CODE, dominantIndicScriptName } from '../core/languages.js';
+import { $, el, toast, copyText, escapeHtml, confirmSheet } from './dom.js';
+import {
+  extractEntities, groupEntities, transliterate, canTransliterate,
+  translate, TRANSLATION_PROVIDERS,
+} from '../core/lens.js';
+import { LANGUAGES, LANG_BY_CODE, dominantIndicScriptName } from '../core/languages.js';
+import { getSettings, setSetting } from '../core/db.js';
 
 const LOW_CONFIDENCE = 72;
 
@@ -17,6 +21,7 @@ export class TextViewController {
   constructor({ onBack }) {
     this.onBack = onBack;
     this.current = null;
+    this.translations = new Map();   // cache key -> translated text
 
     $('#btn-text-back').addEventListener('click', () => this.onBack && this.onBack());
     $('#btn-copy-text').addEventListener('click', () => this._copyAll());
@@ -26,6 +31,25 @@ export class TextViewController {
       if (!tab) return;
       this._selectTab(tab.dataset.tab);
     });
+
+    this._buildTargetOptions();
+    $('#btn-translate').addEventListener('click', () => this._runTranslation());
+    $('#translate-target').addEventListener('change', (e) => {
+      setSetting('translateTarget', e.target.value);
+      this._showCachedTranslation();
+    });
+  }
+
+  _buildTargetOptions() {
+    const select = $('#translate-target');
+    select.innerHTML = '';
+    for (const lang of LANGUAGES) {
+      if (!lang.iso) continue;
+      select.append(el('option', {
+        value: lang.iso,
+        text: lang.code === 'eng' ? lang.name : `${lang.name} · ${lang.native}`,
+      }));
+    }
   }
 
   _selectTab(name) {
@@ -49,6 +73,7 @@ export class TextViewController {
     this._renderText(result);
     this._renderEntities(result.text);
     this._renderTransliteration(result.text, result.langs || []);
+    this._renderTranslatePanel(result);
   }
 
   _renderMeta(result, context) {
@@ -210,6 +235,142 @@ export class TextViewController {
     box.textContent = transliterate(text, { schwaDeletion: !sanskritOnly });
   }
 
+  /* ---------------------------- Translation ---------------------------- */
+
+  /**
+   * The source language comes from what the page was actually read in, which
+   * beats asking a service to guess from a page of OCR output.
+   */
+  _sourceIso() {
+    const langs = (this.current && this.current.langs) || [];
+    const indic = langs
+      .map((c) => LANG_BY_CODE[c])
+      .filter((l) => l && l.script !== 'latin');
+    if (indic.length === 1) return indic[0].iso;
+    if (indic.length > 1) return indic[0].iso;
+    return LANG_BY_CODE.eng ? LANG_BY_CODE.eng.iso : 'en';
+  }
+
+  _cacheKey(target, provider) {
+    const text = (this.current && this.current.text) || '';
+    return `${provider}:${this._sourceIso()}>${target}:${text.length}:${text.slice(0, 60)}`;
+  }
+
+  async _renderTranslatePanel(result) {
+    const settings = await getSettings();
+    this.settings = settings;
+
+    const select = $('#translate-target');
+    const preferred = settings.translateTarget || 'en';
+    select.value = [...select.options].some((o) => o.value === preferred) ? preferred : 'en';
+
+    const provider = settings.translateProvider || 'mymemory';
+    const def = TRANSLATION_PROVIDERS[provider] || TRANSLATION_PROVIDERS.mymemory;
+    const note = $('#translate-note');
+
+    if (provider === 'none') {
+      note.innerHTML =
+        'Translation is switched off, so nothing is ever sent anywhere. ' +
+        'Turn on a provider in <strong>Settings → Translation</strong> to use it.';
+      $('#btn-translate').disabled = true;
+    } else {
+      note.innerHTML =
+        `Unlike everything else in this app, translation needs a service: the ` +
+        `text on this page is sent to <strong>${escapeHtml(def.name.replace(/ \(.*\)$/, ''))}</strong> ` +
+        `when you tap Translate, and not before. ` +
+        `<strong>Do not translate pages holding Aadhaar, PAN or bank details</strong> ` +
+        `unless you are using your own server or key.`;
+      $('#btn-translate').disabled = false;
+    }
+
+    $('#translate-progress').hidden = true;
+    this._showCachedTranslation();
+    void result;
+  }
+
+  _showCachedTranslation() {
+    const box = $('#translate-text');
+    const provider = (this.settings && this.settings.translateProvider) || 'mymemory';
+    const cached = this.translations.get(this._cacheKey($('#translate-target').value, provider));
+
+    if (cached) {
+      box.textContent = cached;
+      box.hidden = false;
+      $('#btn-translate').textContent = 'Translate again';
+    } else {
+      box.hidden = true;
+      $('#btn-translate').textContent = 'Translate page';
+    }
+  }
+
+  async _runTranslation() {
+    if (!this.current || !this.current.text) return;
+
+    const settings = this.settings || await getSettings();
+    const provider = settings.translateProvider || 'mymemory';
+    const target = $('#translate-target').value;
+    const source = this._sourceIso();
+
+    if (source === target) {
+      toast('That is already the language of this page.');
+      return;
+    }
+
+    // Text leaves the device here, so ask once and remember the answer.
+    if (!settings.translateConsent) {
+      const def = TRANSLATION_PROVIDERS[provider] || {};
+      const ok = await confirmSheet(
+        'Send this page for translation?',
+        'Send and translate',
+        {
+          danger: false,
+          note: `The recognised text will be sent to ${def.name || provider}. ` +
+                'Everything else in ScanPro stays on this device.',
+        });
+      if (!ok) return;
+      await setSetting('translateConsent', true);
+      settings.translateConsent = true;
+      this.settings = settings;
+    }
+
+    const button = $('#btn-translate');
+    const progress = $('#translate-progress');
+    const fill = $('#translate-progress-fill');
+    const label = $('#translate-progress-label');
+
+    button.disabled = true;
+    progress.hidden = false;
+    fill.style.width = '0%';
+    label.textContent = 'Translating…';
+
+    try {
+      const out = await translate(this.current.text, {
+        target,
+        source,
+        provider,
+        url: settings.translateUrl,
+        apiKey: settings.translateKey,
+        email: settings.translateEmail,
+        onProgress: ({ done, total }) => {
+          fill.style.width = `${Math.round((done / total) * 100)}%`;
+          label.textContent = total > 1
+            ? `Translating… part ${Math.min(done + 1, total)} of ${total}`
+            : 'Translating…';
+        },
+      });
+
+      this.translations.set(this._cacheKey(target, provider), out);
+      this._showCachedTranslation();
+      toast('Translated', 'success');
+    } catch (err) {
+      console.error(err);
+      toast(err.message || 'Translation failed.', 'error', 6000);
+    } finally {
+      button.disabled = false;
+      progress.hidden = true;
+    }
+  }
+
   async _copyAll() {
     if (!this.current) return;
     const active = document.querySelector('#text-tabs .tab.active');
@@ -218,6 +379,13 @@ export class TextViewController {
     let payload = this.current.text || '';
     if (which === 'translit') {
       payload = transliterate(payload, { schwaDeletion: !this.sanskritOnly });
+    }
+    if (which === 'translate') {
+      const provider = (this.settings && this.settings.translateProvider) || 'mymemory';
+      const cached = this.translations.get(
+        this._cacheKey($('#translate-target').value, provider));
+      if (!cached) { toast('Nothing translated yet — tap Translate page first.'); return; }
+      payload = cached;
     }
     if (which === 'entities') {
       payload = groupEntities(extractEntities(this.current.text || ''))
