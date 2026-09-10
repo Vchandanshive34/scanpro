@@ -37,6 +37,7 @@ Installs to a phone's home screen and works with the network off.
   IDs, PAN, GSTIN, IFSC, Aadhaar (checksum-validated), vehicle numbers,
   amounts, dates
 - Offline transliteration between Indic scripts and Roman letters
+- Translation into English or any of the 14 Indian languages
 
 ---
 
@@ -60,8 +61,13 @@ run it. `npm install` is only for the test suite.
 
 ```bash
 node tools/serve.mjs 8099 &
-node tools/test/e2e.mjs        # 29 checks: pipeline, OCR, PDF, UI flow
-node tools/test/camera.mjs     # 7 checks: live camera and auto-capture
+npm test                            # all five suites
+
+node tools/test/e2e.mjs             # 29 checks: pipeline, OCR, PDF, UI flow
+node tools/test/camera.mjs          #  7 checks: live camera and auto-capture
+node tools/test/storage.mjs         # 12 checks: IndexedDB collision and repair
+node tools/test/transliteration.mjs # 38 checks: schwa deletion, nasals, scripts
+node tools/test/translate.mjs       # 28 checks: chunking, providers, consent
 ```
 
 Both drive a real Chromium against a synthetic photo of a Hindi/English
@@ -239,3 +245,16 @@ To rebuild the glyphless font: `python3 tools/make_glyphless_font.py`.
   implemented.
 - Handwriting recognition is weak — that is a limit of the Tesseract models,
   not of the pipeline around them.
+- Transliteration cannot see morpheme boundaries, so compound words and
+  proper nouns sometimes lose an inherent vowel they should keep (रावणास
+  comes out `rāvṇās` rather than `rāvaṇās`). Correcting that needs a
+  dictionary, not a rule.
+- Translation quality on the free default is modest. Point Settings at Google
+  Cloud Translation or your own LibreTranslate server for serious use.
+
+## Deploying an update
+
+The service worker serves the app shell cache-first, so **bump `VERSION` in
+`sw.js`** on every deploy. Without it, returning visitors keep running the
+previous build whatever is on the server. Language models live in a separate,
+unversioned cache and survive code deploys.
