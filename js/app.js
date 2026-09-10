@@ -29,8 +29,14 @@ import {
 
 import { ocrEngine } from './core/ocr.js';
 import { buildSearchablePDF } from './core/pdf.js';
-import { scanBarcodes, barcodeSupported, extractEntities, groupEntities } from './core/lens.js';
+import {
+  scanBarcodes, barcodeSupported, extractEntities, groupEntities,
+  transliterate, canTransliterate,
+} from './core/lens.js';
 import { captureForLens, grabBurst } from './core/lens-capture.js';
+import {
+  translateWithConsent, languageName, sourceIsoFor, preferredTarget,
+} from './ui/translate-ui.js';
 import { LANG_BY_CODE } from './core/languages.js';
 
 /* ==================================================================== */
@@ -891,6 +897,84 @@ function renderLensCards(cards) {
   }
 }
 
+/** Put a result card at the top of the Lens stack, replacing one of its kind. */
+function prependLensCard(card, replaceTitlePrefix) {
+  const box = $('#lens-results');
+  if (!box) return;
+
+  if (replaceTitlePrefix) {
+    for (const existing of [...box.children]) {
+      const title = existing.querySelector('.lens-card-title');
+      if (title && title.textContent.startsWith(replaceTitlePrefix)) existing.remove();
+    }
+  }
+
+  const node = el('div', { class: 'lens-card' }, [
+    el('div', { class: 'lens-card-title', text: card.title }),
+    el('div', { class: 'lens-card-value', text: card.value }),
+    el('div', { class: 'lens-card-actions' },
+      card.actions.map((a) => el('button', {
+        class: `lens-btn ${a.primary ? 'primary' : ''}`,
+        text: a.label,
+        onclick: a.run,
+      }))),
+  ]);
+
+  box.prepend(node);
+}
+
+/** Translate what Lens just read, into the language chosen in Settings. */
+async function lensTranslate(text, sourceIso) {
+  let showing = false;
+  try {
+    const out = await translateWithConsent(text, {
+      sourceIso,
+      // Only after consent: a busy overlay raised earlier would sit on top of
+      // the consent sheet and swallow its buttons.
+      onStart: () => { busy('Translating…'); showing = true; },
+      onProgress: ({ done, total }) => busyUpdate(
+        total > 1 ? `Translating… part ${Math.min(done + 1, total)} of ${total}` : 'Translating…',
+        total ? done / total : 0),
+    });
+
+    if (!out) return;   // declined
+
+    prependLensCard({
+      title: `TRANSLATION · ${languageName(out.target).toUpperCase()}`,
+      value: out.text,
+      actions: [{
+        label: 'Copy', primary: true, run: async () => {
+          const ok = await copyText(out.text);
+          toast(ok ? 'Copied' : 'Could not copy', ok ? 'success' : 'error');
+        },
+      }],
+    }, 'TRANSLATION');
+  } catch (err) {
+    toast(err.message || 'Could not translate that.', 'error', 5000);
+  } finally {
+    if (showing) busyDone();
+  }
+}
+
+/** Roman letters for the same words — offline, instant, no service involved. */
+function lensTransliterate(text, langs) {
+  const indic = (langs || []).filter((c) => LANG_BY_CODE[c] &&
+    LANG_BY_CODE[c].script !== 'latin');
+  const sanskritOnly = indic.length > 0 && indic.every((c) => c === 'san');
+  const roman = transliterate(text, { schwaDeletion: !sanskritOnly });
+
+  prependLensCard({
+    title: 'ROMAN LETTERS',
+    value: roman,
+    actions: [{
+      label: 'Copy', primary: true, run: async () => {
+        const ok = await copyText(roman);
+        toast(ok ? 'Copied' : 'Could not copy', ok ? 'success' : 'error');
+      },
+    }],
+  }, 'ROMAN');
+}
+
 async function lensCapture() {
   const video = $('#lens-video');
   if (!video || !video.videoWidth) return;
@@ -920,38 +1004,62 @@ async function lensCapture() {
 
     if (result.text.trim()) {
       const conf = Math.round(result.confidence || 0);
+      const source = sourceIsoFor(langs);
+      const target = await preferredTarget();
+
+      const actions = [
+        {
+          label: 'Copy', primary: true, run: async () => {
+            const ok = await copyText(result.text);
+            toast(ok ? 'Copied' : 'Could not copy', ok ? 'success' : 'error');
+          },
+        },
+      ];
+
+      // The point of pointing a phone at a foreign sign.
+      if (source !== target) {
+        actions.push({
+          label: `Translate → ${languageName(target)}`,
+          primary: true,
+          run: () => lensTranslate(result.text, source),
+        });
+      }
+
+      // Offline, instant, and often all someone needs to say a name aloud.
+      if (canTransliterate(result.text)) {
+        actions.push({
+          label: 'Roman letters',
+          run: () => lensTransliterate(result.text, langs),
+        });
+      }
+
+      actions.push(
+        {
+          label: 'Search web', run: () => window.open(
+            `https://www.google.com/search?q=${encodeURIComponent(result.text.trim().slice(0, 200))}`,
+            '_blank', 'noopener'),
+        },
+        {
+          label: 'Save as scan', run: async () => {
+            const blob = await canvasToBlob(shot.canvas, 'image/jpeg', state.settings.jpegQuality);
+            const doc = await createDocument();
+            await addPage(doc.id, {
+              blob,
+              ocrBlob: blob,
+              thumb: await makeThumbnail(shot.canvas),
+              width: shot.canvas.width, height: shot.canvas.height,
+              words: result.words, text: result.text,
+              confidence: result.confidence, ocrLangs: langs,
+            });
+            toast('Saved to your scans', 'success');
+            refreshLibrary();
+          },
+        });
+
       cards.push({
         title: `TEXT · ${conf}% confidence`,
         value: result.text.trim().slice(0, 400),
-        actions: [
-          {
-            label: 'Copy', primary: true, run: async () => {
-              const ok = await copyText(result.text);
-              toast(ok ? 'Copied' : 'Could not copy', ok ? 'success' : 'error');
-            },
-          },
-          {
-            label: 'Search web', run: () => window.open(
-              `https://www.google.com/search?q=${encodeURIComponent(result.text.trim().slice(0, 200))}`,
-              '_blank', 'noopener'),
-          },
-          {
-            label: 'Save as scan', run: async () => {
-              const blob = await canvasToBlob(shot.canvas, 'image/jpeg', state.settings.jpegQuality);
-              const doc = await createDocument();
-              await addPage(doc.id, {
-                blob,
-                ocrBlob: blob,
-                thumb: await makeThumbnail(shot.canvas),
-                width: shot.canvas.width, height: shot.canvas.height,
-                words: result.words, text: result.text,
-                confidence: result.confidence, ocrLangs: langs,
-              });
-              toast('Saved to your scans', 'success');
-              refreshLibrary();
-            },
-          },
-        ],
+        actions,
       });
 
       // A low-confidence read usually means the frame, not the text.
