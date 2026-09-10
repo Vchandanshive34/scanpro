@@ -57,12 +57,19 @@ export class SettingsController {
     });
     $('#set-translate-url').addEventListener('change', (e) => save('translateUrl', e.target.value.trim()));
     $('#set-translate-key').addEventListener('change', (e) => save('translateKey', e.target.value.trim()));
+    $('#set-translate-email').addEventListener('change', (e) => save('translateEmail', e.target.value.trim()));
+
+    // Turning the prompt back on clears the stored consent, so the next
+    // translation asks again.
+    $('#set-translate-ask').addEventListener('change', (e) => save('translateConsent', !e.target.checked));
   }
 
   _updateTranslationRows(provider) {
     const def = TRANSLATION_PROVIDERS[provider] || {};
     $('#row-translate-url').hidden = !def.needsUrl;
     $('#row-translate-key').hidden = !def.needsKey;
+    $('#row-translate-email').hidden = !def.needsEmail;
+    $('#translate-provider-note').textContent = def.note || '';
   }
 
   async show() {
@@ -79,6 +86,8 @@ export class SettingsController {
     $('#set-translate-provider').value = provider;
     $('#set-translate-url').value = s.translateUrl || '';
     $('#set-translate-key').value = s.translateKey || '';
+    $('#set-translate-email').value = s.translateEmail || '';
+    $('#set-translate-ask').checked = !s.translateConsent;
     this._updateTranslationRows(provider);
 
     this._renderLanguages();
