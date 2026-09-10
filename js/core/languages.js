@@ -20,23 +20,28 @@ export const SCRIPTS = {
   arabic:     { name: 'Perso-Arabic', ranges: [[0x0600, 0x06ff], [0x0750, 0x077f], [0xfb50, 0xfdff], [0xfe70, 0xfeff]] },
 };
 
-/** Languages offered by the app. `eng` is always installed. */
+/**
+ * Languages offered by the app. `eng` is always installed.
+ *
+ * `iso` is the ISO 639-1 code translation services expect, which is not the
+ * three-letter code Tesseract uses for its models.
+ */
 export const LANGUAGES = [
-  { code: 'eng', name: 'English',   native: 'English',  script: 'latin',      size: 4.0, core: true },
-  { code: 'hin', name: 'Hindi',     native: 'हिन्दी',      script: 'devanagari', size: 1.1 },
-  { code: 'ben', name: 'Bengali',   native: 'বাংলা',      script: 'bengali',    size: 0.8 },
-  { code: 'tam', name: 'Tamil',     native: 'தமிழ்',      script: 'tamil',      size: 3.1 },
-  { code: 'tel', name: 'Telugu',    native: 'తెలుగు',     script: 'telugu',     size: 2.7 },
-  { code: 'mar', name: 'Marathi',   native: 'मराठी',      script: 'devanagari', size: 2.1 },
-  { code: 'guj', name: 'Gujarati',  native: 'ગુજરાતી',     script: 'gujarati',   size: 1.4 },
-  { code: 'kan', name: 'Kannada',   native: 'ಕನ್ನಡ',      script: 'kannada',    size: 3.5 },
-  { code: 'mal', name: 'Malayalam', native: 'മലയാളം',    script: 'malayalam',  size: 5.1 },
-  { code: 'pan', name: 'Punjabi',   native: 'ਪੰਜਾਬੀ',      script: 'gurmukhi',   size: 0.5 },
-  { code: 'ori', name: 'Odia',      native: 'ଓଡ଼ିଆ',       script: 'odia',       size: 1.5 },
-  { code: 'asm', name: 'Assamese',  native: 'অসমীয়া',    script: 'bengali',    size: 2.0 },
-  { code: 'urd', name: 'Urdu',      native: 'اردو',       script: 'arabic',     size: 1.4, rtl: true },
-  { code: 'san', name: 'Sanskrit',  native: 'संस्कृतम्',    script: 'devanagari', size: 12.0 },
-  { code: 'nep', name: 'Nepali',    native: 'नेपाली',      script: 'devanagari', size: 1.0 },
+  { code: 'eng', iso: 'en', name: 'English',   native: 'English',  script: 'latin',      size: 4.0, core: true },
+  { code: 'hin', iso: 'hi', name: 'Hindi',     native: 'हिन्दी',      script: 'devanagari', size: 1.1 },
+  { code: 'ben', iso: 'bn', name: 'Bengali',   native: 'বাংলা',      script: 'bengali',    size: 0.8 },
+  { code: 'tam', iso: 'ta', name: 'Tamil',     native: 'தமிழ்',      script: 'tamil',      size: 3.1 },
+  { code: 'tel', iso: 'te', name: 'Telugu',    native: 'తెలుగు',     script: 'telugu',     size: 2.7 },
+  { code: 'mar', iso: 'mr', name: 'Marathi',   native: 'मराठी',      script: 'devanagari', size: 2.1 },
+  { code: 'guj', iso: 'gu', name: 'Gujarati',  native: 'ગુજરાતી',     script: 'gujarati',   size: 1.4 },
+  { code: 'kan', iso: 'kn', name: 'Kannada',   native: 'ಕನ್ನಡ',      script: 'kannada',    size: 3.5 },
+  { code: 'mal', iso: 'ml', name: 'Malayalam', native: 'മലയാളം',    script: 'malayalam',  size: 5.1 },
+  { code: 'pan', iso: 'pa', name: 'Punjabi',   native: 'ਪੰਜਾਬੀ',      script: 'gurmukhi',   size: 0.5 },
+  { code: 'ori', iso: 'or', name: 'Odia',      native: 'ଓଡ଼ିଆ',       script: 'odia',       size: 1.5 },
+  { code: 'asm', iso: 'as', name: 'Assamese',  native: 'অসমীয়া',    script: 'bengali',    size: 2.0 },
+  { code: 'urd', iso: 'ur', name: 'Urdu',      native: 'اردو',       script: 'arabic',     size: 1.4, rtl: true },
+  { code: 'san', iso: 'sa', name: 'Sanskrit',  native: 'संस्कृतम्',    script: 'devanagari', size: 12.0 },
+  { code: 'nep', iso: 'ne', name: 'Nepali',    native: 'नेपाली',      script: 'devanagari', size: 1.0 },
 ];
 
 export const LANG_BY_CODE = Object.fromEntries(LANGUAGES.map((l) => [l.code, l]));
