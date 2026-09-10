@@ -12,7 +12,7 @@
  * new cache name returning visitors keep running the previous build no matter
  * what is on the server.
  */
-const VERSION = 'v2';
+const VERSION = 'v3';
 const SHELL_CACHE = `scanpro-shell-${VERSION}`;
 
 // Deliberately unversioned: language models are immutable and can be tens of
