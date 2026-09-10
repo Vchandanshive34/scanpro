@@ -643,50 +643,249 @@ export function canTransliterate(text) {
 /* Translation                                                         */
 /* ------------------------------------------------------------------ */
 
+
 /**
- * Translation is deliberately pluggable and off by default.
+ * Machine translation.
  *
- * Real machine translation needs a neural model far too large to ship in a
- * web app, so this app does the honest thing: transliteration works offline,
- * and translation is available if you point it at a service you control.
- * Nothing leaves the device unless you configure one and ask for it.
+ * This is the one feature that sends anything off the device, so it is
+ * deliberately explicit: nothing is transmitted until the reader asks for a
+ * translation, the service that will receive the text is named on screen, and
+ * the first request needs consent. People scan Aadhaar cards and bank
+ * statements with this app; silently posting a page to a third party would
+ * betray the rest of the design.
+ *
+ * A neural translation model is far too large to ship in a web app, so
+ * translation needs a service. The default works with no setup; the other two
+ * are for people who want their own key or their own server.
  */
+
+const CHUNK_LIMIT = 450;     // MyMemory rejects much more than 500 per request
+const CHUNK_PAUSE_MS = 260;  // be a polite client of a free service
+
 export const TRANSLATION_PROVIDERS = {
-  none: { name: 'Off (transliteration only)', needsKey: false, needsUrl: false },
-  libretranslate: { name: 'LibreTranslate (self-hosted)', needsKey: false, needsUrl: true },
-  google: { name: 'Google Cloud Translation', needsKey: true, needsUrl: false },
+  mymemory: {
+    name: 'MyMemory (free, no setup)',
+    needsKey: false,
+    needsUrl: false,
+    needsEmail: true,
+    note: 'Free translation memory. No account needed; adding an email raises the daily limit.',
+  },
+  libretranslate: {
+    name: 'LibreTranslate (your own server)',
+    needsKey: false,
+    needsUrl: true,
+    note: 'Runs wherever you host it, so the text stays under your control.',
+  },
+  google: {
+    name: 'Google Cloud Translation',
+    needsKey: true,
+    needsUrl: false,
+    note: 'The most accurate option for Indian languages. Needs your own API key, and is billed to you.',
+  },
+  none: {
+    name: 'Off',
+    needsKey: false,
+    needsUrl: false,
+    note: 'No text ever leaves the device.',
+  },
 };
 
-export async function translate(text, targetLang, config) {
-  if (!config || !config.provider || config.provider === 'none') {
-    throw new Error('Translation is off. Turn on a provider in Settings.');
+/**
+ * Split text into request-sized pieces without cutting sentences in half.
+ *
+ * Line structure is preserved so the translated page still looks like the
+ * page: headings on their own lines, table rows intact.
+ */
+export function chunkText(text, limit = CHUNK_LIMIT) {
+  const chunks = [];
+  let current = '';
+
+  const push = () => {
+    if (current.trim()) chunks.push(current);
+    current = '';
+  };
+
+  for (const line of String(text).split('\n')) {
+    if (!line.trim()) {
+      if (current) current += '\n';
+      continue;
+    }
+
+    if (current.length + line.length + 1 <= limit) {
+      current += (current ? '\n' : '') + line;
+      continue;
+    }
+
+    push();
+
+    if (line.length <= limit) { current = line; continue; }
+
+    // A single very long line: break it at sentence ends, then hard-wrap.
+    let rest = line;
+    while (rest.length > limit) {
+      const window = rest.slice(0, limit);
+      let cut = Math.max(
+        window.lastIndexOf('। '), window.lastIndexOf('. '),
+        window.lastIndexOf('? '), window.lastIndexOf('! '));
+      if (cut < limit * 0.4) cut = window.lastIndexOf(' ');
+      if (cut < limit * 0.4) cut = limit;
+      chunks.push(rest.slice(0, cut + 1).trim());
+      rest = rest.slice(cut + 1);
+    }
+    current = rest;
   }
 
-  if (config.provider === 'libretranslate') {
-    if (!config.url) throw new Error('Set the LibreTranslate server URL in Settings.');
-    const res = await fetch(`${config.url.replace(/\/$/, '')}/translate`, {
+  push();
+  return chunks;
+}
+
+async function translateChunkMyMemory(chunk, source, target, config) {
+  const params = new URLSearchParams({
+    q: chunk,
+    langpair: `${source || 'autodetect'}|${target}`,
+  });
+  if (config.email) params.set('de', config.email);
+
+  const res = await fetch(`https://api.mymemory.translated.net/get?${params}`);
+  if (!res.ok) throw new Error(`Translation service returned ${res.status}.`);
+
+  const data = await res.json();
+
+  // MyMemory reports quota problems in the body, with a 200 HTTP status. The
+  // wording varies ("USED ALL AVAILABLE FREE TRANSLATIONS", "QUERY LENGTH
+  // LIMIT EXCEEDED"), so match the shape of the complaint rather than a phrase.
+  const status = Number(data.responseStatus);
+  const quotaHit = (s) => /limit|quota|used all|too many|exceed/i.test(s || '');
+
+  if (status && status !== 200) {
+    const detail = String(data.responseDetails || '');
+    if (quotaHit(detail)) {
+      throw new Error('Daily free translation limit reached. Add an email in ' +
+        'Settings to raise it, or switch to your own key or server.');
+    }
+    throw new Error(detail || `Translation failed (${status}).`);
+  }
+
+  const out = data.responseData && data.responseData.translatedText;
+  if (!out) throw new Error('The translation service returned nothing.');
+
+  // The free tier sometimes puts the complaint in the translation itself.
+  if (/MYMEMORY WARNING|QUERY LENGTH LIMIT|USED ALL/i.test(out)) {
+    throw new Error('Daily free translation limit reached. Add an email in ' +
+      'Settings to raise it, or switch to your own key or server.');
+  }
+
+  return out;
+}
+
+async function translateChunkLibre(chunk, source, target, config) {
+  if (!config.url) throw new Error('Set your LibreTranslate server URL in Settings.');
+
+  const body = {
+    q: chunk,
+    source: source || 'auto',
+    target,
+    format: 'text',
+  };
+  if (config.apiKey) body.api_key = config.apiKey;
+
+  const res = await fetch(`${config.url.replace(/\/+$/, '')}/translate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`Your server returned ${res.status}.`);
+
+  const data = await res.json();
+  if (!data.translatedText) throw new Error('The server returned nothing.');
+  return data.translatedText;
+}
+
+async function translateChunkGoogle(chunk, source, target, config) {
+  if (!config.apiKey) throw new Error('Add your Google Cloud API key in Settings.');
+
+  const payload = { q: chunk, target, format: 'text' };
+  if (source) payload.source = source;
+
+  const res = await fetch(
+    `https://translation.googleapis.com/language/translate/v2?key=${encodeURIComponent(config.apiKey)}`,
+    {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ q: text, source: 'auto', target: targetLang, format: 'text' }),
+      body: JSON.stringify(payload),
     });
-    if (!res.ok) throw new Error(`Translation server returned ${res.status}.`);
-    const data = await res.json();
-    return data.translatedText;
+
+  if (!res.ok) {
+    const detail = await res.json().catch(() => null);
+    const message = detail && detail.error && detail.error.message;
+    throw new Error(message || `Translation failed (${res.status}).`);
   }
 
-  if (config.provider === 'google') {
-    if (!config.apiKey) throw new Error('Add your Google Cloud API key in Settings.');
-    const res = await fetch(
-      `https://translation.googleapis.com/language/translate/v2?key=${encodeURIComponent(config.apiKey)}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ q: text, target: targetLang, format: 'text' }),
-      });
-    if (!res.ok) throw new Error(`Translation failed (${res.status}).`);
-    const data = await res.json();
-    return data.data.translations[0].translatedText;
+  const data = await res.json();
+  const out = data.data.translations[0].translatedText;
+
+  // Google escapes entities even in text mode.
+  return out.replace(/&#39;/g, "'").replace(/&quot;/g, '"')
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+}
+
+const CHUNK_TRANSLATORS = {
+  mymemory: translateChunkMyMemory,
+  libretranslate: translateChunkLibre,
+  google: translateChunkGoogle,
+};
+
+/**
+ * Translate a block of text.
+ *
+ * @param {string} text
+ * @param {Object} options
+ *   target    ISO 639-1 code to translate into, e.g. "en"
+ *   source    ISO 639-1 code of the text, or null to let the service guess
+ *   provider  key of TRANSLATION_PROVIDERS
+ *   url       LibreTranslate server, when that provider is selected
+ *   apiKey    key, for providers that need one
+ *   email     optional, raises the MyMemory free limit
+ *   onProgress({done, total})
+ *   signal    AbortSignal
+ * @returns {Promise<string>}
+ */
+export async function translate(text, options = {}) {
+  const {
+    target, source = null, provider = 'mymemory',
+    onProgress = null, signal = null,
+  } = options;
+
+  if (!text || !text.trim()) return '';
+  if (provider === 'none') {
+    throw new Error('Translation is switched off. Choose a provider in Settings.');
+  }
+  if (!target) throw new Error('Pick a language to translate into.');
+
+  const translateChunk = CHUNK_TRANSLATORS[provider];
+  if (!translateChunk) throw new Error('Unknown translation provider.');
+
+  if (!navigator.onLine) {
+    throw new Error('Translation needs a connection. Transliteration works offline.');
   }
 
-  throw new Error('Unknown translation provider.');
+  // Translating into the language it is already in is a no-op.
+  if (source && source === target) return text;
+
+  const chunks = chunkText(text);
+  const out = [];
+
+  for (let i = 0; i < chunks.length; i++) {
+    if (signal && signal.aborted) throw new Error('Translation cancelled.');
+    if (onProgress) onProgress({ done: i, total: chunks.length });
+
+    out.push(await translateChunk(chunks[i], source, target, options));
+
+    if (i < chunks.length - 1) {
+      await new Promise((r) => setTimeout(r, CHUNK_PAUSE_MS));
+    }
+  }
+
+  if (onProgress) onProgress({ done: chunks.length, total: chunks.length });
+  return out.join('\n');
 }
