@@ -6,7 +6,7 @@
   "private": true,
   "scripts": {
     "start": "node tools/serve.mjs 8080",
-    "test": "node tools/test/e2e.mjs && node tools/test/camera.mjs && node tools/test/storage.mjs && node tools/test/transliteration.mjs",
+    "test": "node tools/test/e2e.mjs && node tools/test/camera.mjs && node tools/test/storage.mjs && node tools/test/transliteration.mjs && node tools/test/translate.mjs",
     "font": "python3 tools/make_glyphless_font.py"
   },
   "devDependencies": {
