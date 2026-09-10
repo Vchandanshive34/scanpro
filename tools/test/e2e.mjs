@@ -223,7 +223,10 @@ check('pages review shows the captured page',
 await page.screenshot({ path: `${OUT}/ui-pages.png` });
 
 await page.locator('#btn-pages-save').click();
-await page.waitForTimeout(2500);
+// Saving runs OCR first when "read after scanning" is on, so wait for the
+// document screen rather than a fixed delay.
+await page.locator('#screen-doc').waitFor({ state: 'visible', timeout: 90000 })
+  .catch(() => {});
 check('document saved and opened', await page.locator('#screen-doc').isVisible());
 await page.screenshot({ path: `${OUT}/ui-doc.png` });
 
