@@ -1160,4 +1160,5 @@ boot().catch((err) => {
 
 // Exposed for debugging in the console and for the automated tests.
 window.__scanpro = { state, runOcr, exportPdf };
+Object.defineProperty(window, '__scanproText', { get: () => textView });
 Object.defineProperty(window, '__scanproCamera', { get: () => camera });
